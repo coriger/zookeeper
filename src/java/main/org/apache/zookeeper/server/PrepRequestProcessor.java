@@ -285,7 +285,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
 
     /**
      * Grant or deny authorization to an operation on a node as a function of:
-     *
+     * 鉴权
      * @param zks: not used.
      * @param acl:  set of ACLs for the node
      * @param perm: the permission that the client is requesting

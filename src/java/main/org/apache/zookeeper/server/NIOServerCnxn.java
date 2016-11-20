@@ -18,23 +18,6 @@
 
 package org.apache.zookeeper.server;
 
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.CancelledKeyException;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.SocketChannel;
-import java.security.cert.Certificate;
-import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.jute.BinaryInputArchive;
 import org.apache.jute.BinaryOutputArchive;
 import org.apache.jute.Record;
@@ -49,6 +32,19 @@ import org.apache.zookeeper.server.command.FourLetterCommands;
 import org.apache.zookeeper.server.command.SetTraceMaskCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.CancelledKeyException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
+import java.security.cert.Certificate;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class handles communication with clients using NIO. There is one per
@@ -171,12 +167,16 @@ public class NIOServerCnxn extends ServerCnxn {
             }
         }
 
+        // 读缓存已经满了
         if (incomingBuffer.remaining() == 0) { // have we read length bytes?
+            // 一些统计
             packetReceived();
             incomingBuffer.flip();
+            // 如果还未初始化完成  那收到的消息肯定是请求连接
             if (!initialized) {
                 readConnectRequest();
             } else {
+                // 正常消息
                 readRequest();
             }
             lenBuffer.clear();
@@ -307,6 +307,7 @@ public class NIOServerCnxn extends ServerCnxn {
 
     /**
      * Handles read/write IO on connection.
+     * 处理读写I/O
      */
     void doIO(SelectionKey k) throws InterruptedException {
         try {
@@ -316,6 +317,7 @@ public class NIOServerCnxn extends ServerCnxn {
 
                 return;
             }
+            // 通道可读
             if (k.isReadable()) {
                 int rc = sock.read(incomingBuffer);
                 if (rc < 0) {
@@ -344,6 +346,7 @@ public class NIOServerCnxn extends ServerCnxn {
                     }
                 }
             }
+            // 通道可写
             if (k.isWritable()) {
                 handleWrite(k);
 
@@ -705,6 +708,7 @@ public class NIOServerCnxn extends ServerCnxn {
      */
     @Override
     public void process(WatchedEvent event) {
+        // 构造响应消息头
         ReplyHeader h = new ReplyHeader(-1, -1L, 0);
         if (LOG.isTraceEnabled()) {
             ZooTrace.logTraceMessage(LOG, ZooTrace.EVENT_DELIVERY_TRACE_MASK,
@@ -714,6 +718,7 @@ public class NIOServerCnxn extends ServerCnxn {
         }
 
         // Convert WatchedEvent to a type that can be sent over the wire
+        // 转换可序列化对象
         WatcherEvent e = event.getWrapper();
 
         sendResponse(h, e, "notification");

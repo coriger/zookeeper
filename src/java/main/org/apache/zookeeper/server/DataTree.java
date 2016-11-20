@@ -1387,9 +1387,11 @@ public class DataTree {
             DataNode node = getNode(path);
             WatchedEvent e = null;
             if (node == null) {
+                // 节点已经不存在
                 watcher.process(new WatchedEvent(EventType.NodeDeleted, 
                             KeeperState.SyncConnected, path));
             } else if (node.stat.getMzxid() > relativeZxid) {
+                // 节点版本已经高于自己的
                 watcher.process(new WatchedEvent(EventType.NodeDataChanged, 
                             KeeperState.SyncConnected, path));
             } else {

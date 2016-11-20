@@ -18,6 +18,12 @@
 
 package org.apache.zookeeper.server;
 
+import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.KeeperException.SessionExpiredException;
+import org.apache.zookeeper.common.Time;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.MessageFormat;
@@ -25,16 +31,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.KeeperException.SessionExpiredException;
-import org.apache.zookeeper.common.Time;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This is a full featured SessionTracker. It tracks session in grouped by tick
@@ -284,6 +284,14 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements
         return sessionsById.containsKey(sessionId);
     }
 
+    /**
+     * 检查会话 有效性
+     * @param sessionId
+     * @param owner
+     * @throws KeeperException.SessionExpiredException
+     * @throws KeeperException.SessionMovedException
+     * @throws KeeperException.UnknownSessionException
+     */
     public synchronized void checkSession(long sessionId, Object owner)
             throws KeeperException.SessionExpiredException,
             KeeperException.SessionMovedException,

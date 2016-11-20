@@ -17,24 +17,22 @@
  */
 package org.apache.zookeeper.server.quorum;
 
-import java.io.IOException;
-
-import javax.management.JMException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.jmx.ManagedUtil;
+import org.apache.zookeeper.server.DatadirCleanupManager;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZKDatabase;
-import org.apache.zookeeper.server.DatadirCleanupManager;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.apache.zookeeper.server.admin.AdminServer.AdminServerException;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog.DatadirException;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig.ConfigException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.management.JMException;
+import java.io.IOException;
 
 /**
- *
  * <h2>Configuration file</h2>
  *
  * When the main() method of this class is used to start the program, the first
@@ -107,6 +105,7 @@ public class QuorumPeerMain {
     {
         QuorumPeerConfig config = new QuorumPeerConfig();
         if (args.length == 1) {
+            // 解析zk配置文件
             config.parse(args[0]);
         }
 

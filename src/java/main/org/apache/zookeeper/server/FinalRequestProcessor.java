@@ -101,6 +101,7 @@ public class FinalRequestProcessor implements RequestProcessor {
         ProcessTxnResult rc = null;
         synchronized (zks.outstandingChanges) {
             // Need to process local session requests
+            // 这里进行逻辑处理
             rc = zks.processTxn(request);
 
             // request.hdr is set for write requests, which are the only ones
@@ -321,6 +322,7 @@ public class FinalRequestProcessor implements RequestProcessor {
                 synchronized(n) {
                     aclL = n.acl;
                 }
+                // 权限检查
                 PrepRequestProcessor.checkACL(zks, zks.getZKDatabase().convertLong(aclL),
                         ZooDefs.Perms.READ,
                         request.authInfo);

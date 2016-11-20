@@ -450,10 +450,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         notifyAll();
     }
 
+    /**
+     * 初始化处理器链路
+     * PrepRequestProcessor > SyncRequestProcessor > FinalRequestProcessor
+     */
     protected void setupRequestProcessors() {
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
-        RequestProcessor syncProcessor = new SyncRequestProcessor(this,
-                finalProcessor);
+        RequestProcessor syncProcessor = new SyncRequestProcessor(this,finalProcessor);
         ((SyncRequestProcessor)syncProcessor).start();
         firstProcessor = new PrepRequestProcessor(this, syncProcessor);
         ((PrepRequestProcessor)firstProcessor).start();
@@ -906,6 +909,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         return zkDb.getEphemerals();
     }
 
+    /**
+     * 处理请求连接消息
+     * @param cnxn
+     * @param incomingBuffer
+     * @throws IOException
+     */
     public void processConnectRequest(ServerCnxn cnxn, ByteBuffer incomingBuffer) throws IOException {
         BinaryInputArchive bia = BinaryInputArchive.getArchive(new ByteBufferInputStream(incomingBuffer));
         ConnectRequest connReq = new ConnectRequest();
@@ -960,6 +969,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         // session is setup
         cnxn.disableRecv();
         long sessionId = connReq.getSessionId();
+        // 如果会话是0  则重新创建会话
         if (sessionId == 0) {
             LOG.info("Client attempting to establish new session at "
                     + cnxn.getRemoteSocketAddress());
@@ -976,6 +986,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 secureServerCnxnFactory.closeSession(sessionId);
             }
             cnxn.setSessionId(sessionId);
+            // 重新还原会话
             reopenSession(cnxn, sessionId, passwd, sessionTimeout);
         }
     }

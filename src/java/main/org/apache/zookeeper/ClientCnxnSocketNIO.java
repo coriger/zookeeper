@@ -18,6 +18,12 @@
 
 package org.apache.zookeeper;
 
+import org.apache.zookeeper.ClientCnxn.EndOfStreamException;
+import org.apache.zookeeper.ClientCnxn.Packet;
+import org.apache.zookeeper.ZooDefs.OpCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -30,12 +36,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingDeque;
-
-import org.apache.zookeeper.ClientCnxn.EndOfStreamException;
-import org.apache.zookeeper.ClientCnxn.Packet;
-import org.apache.zookeeper.ZooDefs.OpCode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     private static final Logger LOG = LoggerFactory
@@ -69,6 +69,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         if (sock == null) {
             throw new IOException("Socket is null!");
         }
+        // 通道可读
         if (sockKey.isReadable()) {
             int rc = sock.read(incomingBuffer);
             if (rc < 0) {
@@ -77,12 +78,14 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                                 + Long.toHexString(sessionId)
                                 + ", likely server has closed socket");
             }
+            // 判断接收缓存是否还有空间
             if (!incomingBuffer.hasRemaining()) {
                 incomingBuffer.flip();
                 if (incomingBuffer == lenBuffer) {
                     recvCount++;
                     readLength();
                 } else if (!initialized) {
+                    // 连接建立成功
                     readConnectResult();
                     enableRead();
                     if (findSendablePacket(outgoingQueue,
@@ -103,6 +106,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 }
             }
         }
+        // 通道可写
         if (sockKey.isWritable()) {
             Packet p = findSendablePacket(outgoingQueue,
                     sendThread.tunnelAuthInProgress());
@@ -269,15 +273,19 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
      */
     void registerAndConnect(SocketChannel sock, InetSocketAddress addr) 
     throws IOException {
+        // 注册到多路复用器 监听连接事件
         sockKey = sock.register(selector, SelectionKey.OP_CONNECT);
+        // 建立连接
         boolean immediateConnect = sock.connect(addr);
         if (immediateConnect) {
+            // 连接成功 进行会话连接
             sendThread.primeConnection();
         }
     }
     
     @Override
     void connect(InetSocketAddress addr) throws IOException {
+        // 创建和远程服务端连接的客户端通道
         SocketChannel sock = createSock();
         try {
            registerAndConnect(sock, addr);
@@ -286,6 +294,8 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
             sock.close();
             throw e;
         }
+
+        // 连接建立成功 更新初始化状态为false
         initialized = false;
 
         /*
@@ -340,6 +350,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     @Override
     void doTransport(int waitTimeOut, List<Packet> pendingQueue, ClientCnxn cnxn)
             throws IOException, InterruptedException {
+        // 多路复用器
         selector.select(waitTimeOut);
         Set<SelectionKey> selected;
         synchronized (this) {
@@ -352,12 +363,14 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         for (SelectionKey k : selected) {
             SocketChannel sc = ((SocketChannel) k.channel());
             if ((k.readyOps() & SelectionKey.OP_CONNECT) != 0) {
+                // 连接I/O事件
                 if (sc.finishConnect()) {
                     updateLastSendAndHeard();
                     updateSocketAddresses();
                     sendThread.primeConnection();
                 }
             } else if ((k.readyOps() & (SelectionKey.OP_READ | SelectionKey.OP_WRITE)) != 0) {
+                // 其余可读可写I/O事件
                 doIO(pendingQueue, cnxn);
             }
         }
@@ -410,6 +423,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
 
     @Override
     void connectionPrimed() {
+        // 注册可读 可写事件监听
         sockKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 

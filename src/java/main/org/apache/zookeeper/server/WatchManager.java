@@ -18,14 +18,6 @@
 
 package org.apache.zookeeper.server;
 
-import java.io.PrintWriter;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.EventType;
@@ -33,16 +25,26 @@ import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.PrintWriter;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
 /**
  * This class manages watches. It allows watches to be associated with a string
  * and removes watchers and their watches in addition to managing triggers.
+ * 服务端watcher管理器
  */
 class WatchManager {
     private static final Logger LOG = LoggerFactory.getLogger(WatchManager.class);
 
+    // 服务端维护 节点和监听器的映射关系  path:一组监听器  这里的监听器起始是ServerCnxn对象
     private final HashMap<String, HashSet<Watcher>> watchTable =
         new HashMap<String, HashSet<Watcher>>();
 
+    // 监听器 监听多个节点  这里的watcher是ServerCnxn对象 是负责服务端和客户端通讯的对象
     private final HashMap<Watcher, HashSet<String>> watch2Paths =
         new HashMap<Watcher, HashSet<String>>();
 
@@ -55,6 +57,7 @@ class WatchManager {
     }
 
     synchronized void addWatch(String path, Watcher watcher) {
+        // 用HashSet去重  防止多次注册同一个节点的相关事件
         HashSet<Watcher> list = watchTable.get(path);
         if (list == null) {
             // don't waste memory if there are few watches on a node
@@ -108,6 +111,7 @@ class WatchManager {
                 }
                 return null;
             }
+            // 移除掉所有客户端绑定该节点事件绑定关系
             for (Watcher w : watchers) {
                 HashSet<String> paths = watch2Paths.get(w);
                 if (paths != null) {
@@ -119,6 +123,7 @@ class WatchManager {
             if (supress != null && supress.contains(w)) {
                 continue;
             }
+            // 事件通知
             w.process(e);
         }
         return watchers;

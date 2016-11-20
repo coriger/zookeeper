@@ -18,6 +18,9 @@
 
 package org.apache.zookeeper.server;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.InetAddress;
@@ -28,19 +31,9 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Queue;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * NIOServerCnxnFactory implements a multi-threaded ServerCnxnFactory using
@@ -191,6 +184,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 Set<SelectorThread> selectorThreads) throws IOException {
             super("NIOServerCxnFactory.AcceptThread:" + addr);
             this.acceptSocket = ss;
+            // 往多路复用器上注册该通道申请建立连接I/O事件
             this.acceptKey =
                 acceptSocket.register(selector, SelectionKey.OP_ACCEPT);
             this.selectorThreads = Collections.unmodifiableList(
@@ -238,6 +232,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                         continue;
                     }
                     if (key.isAcceptable()) {
+                        // 接收客户端连接
                         if (!doAccept()) {
                             // If unable to pull a new connection off the accept
                             // queue, pause accepting to give us time to free
@@ -438,7 +433,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                         cleanupSelectionKey(key);
                         continue;
                     }
+
+                    // 通道可读可写
                     if (key.isReadable() || key.isWritable()) {
+                        // 这里进行具体IO操作
                         handleIO(key);
                     } else {
                         LOG.warn("Unexpected ops in select " + key.readyOps());
@@ -614,6 +612,8 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     protected int maxClientCnxns = 60;
 
     int sessionlessCnxnTimeout;
+
+    // 会话失效连接器队列
     private ExpiryQueue<NIOServerCnxn> cnxnExpiryQueue;
 
 
@@ -633,7 +633,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     }
 
     private volatile boolean stopped = true;
+    // 会话过期检查线程
     private ConnectionExpirerThread expirerThread;
+    // 连接接入线程
     private AcceptThread acceptThread;
     private final Set<SelectorThread> selectorThreads =
         new HashSet<SelectorThread>();
@@ -681,11 +683,13 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             selectorThreads.add(new SelectorThread(i));
         }
 
+        // 开启服务端socket通道
         this.ss = ServerSocketChannel.open();
         ss.socket().setReuseAddress(true);
         LOG.info("binding to port " + addr);
         ss.socket().bind(addr);
         ss.configureBlocking(false);
+        // 初始化接入线程
         acceptThread = new AcceptThread(ss, addr, selectorThreads);
     }
    
@@ -727,6 +731,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     public void start() {
         stopped = false;
         if (workerPool == null) {
+            // 创建工作线程池
             workerPool = new WorkerService(
                 "NIOWorker", numWorkerThreads, false);
         }
@@ -750,7 +755,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         start();
         setZooKeeperServer(zks);
         if (startServer) {
+            // 数据载入
             zks.startdata();
+            // 初始化会话管理器  处理链
             zks.startup();
         }
     }

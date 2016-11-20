@@ -157,6 +157,7 @@ public class FileTxnLog implements TxnLog {
 
     /**
      * rollover the current log file to a new one.
+     * 刷新当前日志文件
      * @throws IOException
      */
     public synchronized void rollLog() throws IOException {

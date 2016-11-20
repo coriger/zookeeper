@@ -18,27 +18,8 @@
 
 package org.apache.zookeeper;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.jute.Record;
-import org.apache.zookeeper.AsyncCallback.ACLCallback;
-import org.apache.zookeeper.AsyncCallback.Children2Callback;
-import org.apache.zookeeper.AsyncCallback.ChildrenCallback;
-import org.apache.zookeeper.AsyncCallback.Create2Callback;
-import org.apache.zookeeper.AsyncCallback.DataCallback;
-import org.apache.zookeeper.AsyncCallback.MultiCallback;
-import org.apache.zookeeper.AsyncCallback.StatCallback;
-import org.apache.zookeeper.AsyncCallback.StringCallback;
-import org.apache.zookeeper.AsyncCallback.VoidCallback;
+import org.apache.zookeeper.AsyncCallback.*;
 import org.apache.zookeeper.KeeperException.Code;
 import org.apache.zookeeper.KeeperException.NoWatcherException;
 import org.apache.zookeeper.OpResult.ErrorResult;
@@ -52,33 +33,15 @@ import org.apache.zookeeper.common.PathUtils;
 import org.apache.zookeeper.common.StringUtils;
 import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
-import org.apache.zookeeper.proto.CheckWatchesRequest;
-import org.apache.zookeeper.proto.Create2Response;
-import org.apache.zookeeper.proto.CreateRequest;
-import org.apache.zookeeper.proto.CreateResponse;
-import org.apache.zookeeper.proto.DeleteRequest;
-import org.apache.zookeeper.proto.ExistsRequest;
-import org.apache.zookeeper.proto.GetACLRequest;
-import org.apache.zookeeper.proto.GetACLResponse;
-import org.apache.zookeeper.proto.GetChildren2Request;
-import org.apache.zookeeper.proto.GetChildren2Response;
-import org.apache.zookeeper.proto.GetChildrenRequest;
-import org.apache.zookeeper.proto.GetChildrenResponse;
-import org.apache.zookeeper.proto.GetDataRequest;
-import org.apache.zookeeper.proto.GetDataResponse;
-import org.apache.zookeeper.proto.ReconfigRequest;
-import org.apache.zookeeper.proto.RemoveWatchesRequest;
-import org.apache.zookeeper.proto.ReplyHeader;
-import org.apache.zookeeper.proto.RequestHeader;
-import org.apache.zookeeper.proto.SetACLRequest;
-import org.apache.zookeeper.proto.SetACLResponse;
-import org.apache.zookeeper.proto.SetDataRequest;
-import org.apache.zookeeper.proto.SetDataResponse;
-import org.apache.zookeeper.proto.SyncRequest;
-import org.apache.zookeeper.proto.SyncResponse;
+import org.apache.zookeeper.proto.*;
 import org.apache.zookeeper.server.DataTree;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.*;
 
 /**
  * This is the main class of ZooKeeper client library. To use a ZooKeeper
@@ -229,10 +192,12 @@ public class ZooKeeper {
      * API.
      */
     static class ZKWatchManager implements ClientWatchManager {
+        // 监听节点数据的watcher
         private final Map<String, Set<Watcher>> dataWatches =
             new HashMap<String, Set<Watcher>>();
         private final Map<String, Set<Watcher>> existWatches =
             new HashMap<String, Set<Watcher>>();
+        // 监听节点的watcher
         private final Map<String, Set<Watcher>> childWatches =
             new HashMap<String, Set<Watcher>>();
 
@@ -520,6 +485,7 @@ public class ZooKeeper {
          * Register the watcher with the set of watches on path.
          * @param rc the result code of the operation that attempted to
          * add the watch on the path.
+         * 本地注册监听器  维护一个监听器和节点的映射关系  一对多  一个节点可对应多个监听器
          */
         public void register(int rc) {
             if (shouldAddWatch(rc)) {
@@ -536,6 +502,7 @@ public class ZooKeeper {
         }
         /**
          * Determine whether the watch should be added based on return code.
+         * 判断是否应该注册监听
          * @param rc the result code of the operation that attempted to add the
          * watch on the node
          * @return true if the watch should be added, otw false
@@ -587,9 +554,24 @@ public class ZooKeeper {
     }
 
     public enum States {
-        CONNECTING, ASSOCIATING, CONNECTED, CONNECTEDREADONLY,
-        CLOSED, AUTH_FAILED, NOT_CONNECTED;
+        // 连接中
+        CONNECTING,
+        ASSOCIATING,
+        // 已连接
+        CONNECTED,
+        // 已连接 只读
+        CONNECTEDREADONLY,
+        // 连接已关闭
+        CLOSED,
+        // 鉴权失败
+        AUTH_FAILED,
+        // 未连接
+        NOT_CONNECTED;
 
+        /**
+         * 判断是否存活
+         * @return
+         */
         public boolean isAlive() {
             return this != CLOSED && this != AUTH_FAILED;
         }
@@ -919,10 +901,9 @@ public class ZooKeeper {
                 + " sessionId=" + Long.toHexString(sessionId)
                 + " sessionPasswd="
                 + (sessionPasswd == null ? "<null>" : "<hidden>"));
-
         watchManager = defaultWatchManager();
         watchManager.defaultWatcher = watcher;
-       
+
         ConnectStringParser connectStringParser = new ConnectStringParser(
                 connectString);
         hostProvider = aHostProvider;
@@ -1742,10 +1723,14 @@ public class ZooKeeper {
 
         final String serverPath = prependChroot(clientPath);
 
+        // 构造请求头
         RequestHeader h = new RequestHeader();
+        // 设置请求类型
         h.setType(ZooDefs.OpCode.getData);
+        // 构造请求对象
         GetDataRequest request = new GetDataRequest();
         request.setPath(serverPath);
+        // 设置是否需要监听
         request.setWatch(watcher != null);
         GetDataResponse response = new GetDataResponse();
         ReplyHeader r = cnxn.submitRequest(h, request, response, wcb);
