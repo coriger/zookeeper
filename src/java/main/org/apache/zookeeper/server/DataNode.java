@@ -31,6 +31,7 @@ import org.apache.zookeeper.data.StatPersisted;
 
 /**
  * This class contains the data for a node in the data tree.
+ * zk节点  主要包含节点内容 acl权限 节点装填信息 子节点集合
  * <p>
  * A data node contains a reference to its parent, a byte array as its data, an
  * array of ACLs, a stat object, and a set of its children's paths.

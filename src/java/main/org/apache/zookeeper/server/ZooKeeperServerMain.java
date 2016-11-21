@@ -43,8 +43,10 @@ public class ZooKeeperServerMain {
         "Usage: ZooKeeperServerMain configfile | port datadir [ticktime] [maxcnxns]";
 
     // ZooKeeper server supports two kinds of connection: unencrypted and encrypted.
+    // zk服务提供两种连接 加密和未加密的
     private ServerCnxnFactory cnxnFactory;
     private ServerCnxnFactory secureCnxnFactory;
+
     private ContainerManager containerManager;
 
     private AdminServer adminServer;
@@ -117,6 +119,8 @@ public class ZooKeeperServerMain {
             // run() in this thread.
             // create a file logger url from the command line args
             txnLog = new FileTxnSnapLog(config.dataLogDir, config.dataDir);
+
+            // 创建一个zookeeper server单机实例
             ZooKeeperServer zkServer = new ZooKeeperServer( txnLog,
                     config.tickTime, config.minSessionTimeout, config.maxSessionTimeout, null);
 
@@ -126,14 +130,18 @@ public class ZooKeeperServerMain {
             adminServer.start();
 
             boolean needStartZKServer = true;
+            // 启动服务
             if (config.getClientPortAddress() != null) {
+                // 创建服务端网络通讯的工厂实例
                 cnxnFactory = ServerCnxnFactory.createFactory();
-                // 初始化服务端socket通道 以及客户端接入线程
+                // 内部主要是进行 初始化选择器线程 多路复用器 服务端socket通道 绑定端口并监听建立连接事件 初始化接入线程
                 cnxnFactory.configure(config.getClientPortAddress(), config.getMaxClientCnxns(), false);
+                // 启动zk server
                 cnxnFactory.startup(zkServer);
                 // zkServer has been started. So we don't need to start it again in secureCnxnFactory.
                 needStartZKServer = false;
             }
+
             if (config.getSecureClientPortAddress() != null) {
                 secureCnxnFactory = ServerCnxnFactory.createFactory();
                 secureCnxnFactory.configure(config.getSecureClientPortAddress(), config.getMaxClientCnxns(), true);

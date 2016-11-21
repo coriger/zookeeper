@@ -66,6 +66,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This class manages the quorum protocol. There are three states this server
+ * 该对象用来管理仲裁协议
+ * 该实例代表zk服务集群中的一个节点  它可以有以下几种角色 Leader Follower
  * can be in:
  * <ol>
  * <li>Leader election - each server will elect a leader (proposing itself as a
@@ -369,7 +371,14 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
 
     public enum ServerState {
-        LOOKING, FOLLOWING, LEADING, OBSERVING;
+        // 寻找Leader状态
+        LOOKING,
+        // 跟随者状态
+        FOLLOWING,
+        // 领导者状态
+        LEADING,
+        // 观察者状态
+        OBSERVING;
     }
 
     /*
@@ -604,6 +613,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         }
     }
 
+    // 默认状态
     private ServerState state = ServerState.LOOKING;
     
     private boolean reconfigFlag = false; // indicates that a reconfig just committed
@@ -807,9 +817,18 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         responder.running = false;
         responder.interrupt();
     }
+
+    /**
+     * 进行Leader选举
+     */
     synchronized public void startLeaderElection() {
        try {
+           // 当前状态如果是LOOKING 则创建选票
            if (getPeerState() == ServerState.LOOKING) {
+               // 这个myid就是zk myid文件中的值
+               // getLastLoggedZxid返回最近的事务Id
+               // getCurrentEpoch读取zk本地文件currentEpoch 新leader有新epoch号
+               // 初始化的时候 票是选自己
                currentVote = new Vote(myid, getLastLoggedZxid(), getCurrentEpoch());
            }
        } catch(IOException e) {
@@ -821,6 +840,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
        // if (!getView().containsKey(myid)) {
       //      throw new RuntimeException("My id " + myid + " not in the peer list");
         //}
+        // 目前支持3
         if (electionType == 0) {
             try {
                 udpSocket = new DatagramSocket(myQuorumAddr.getPort());
@@ -830,6 +850,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                 throw new RuntimeException(e);
             }
         }
+        // 根据选举类型 创建相对应的选举算法的选举器
         this.electionAlg = createElectionAlgorithm(electionType);
     }
 
@@ -897,7 +918,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
     /**
      * returns the highest zxid that this host has seen
-     *
+     * 返回最近的事务Id
      * @return the highest zxid for this host
      */
     public long getLastLoggedZxid() {
@@ -939,9 +960,12 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             le = new AuthFastLeaderElection(this, true);
             break;
         case 3:
+            // 现在默认用这个算法  QuorumCnxManager是选举tcp连接管理器
             qcm = new QuorumCnxManager(this);
+            // listener用来监听连接请求
             QuorumCnxManager.Listener listener = qcm.listener;
             if(listener != null){
+                // 启动线程 开始监听选举信息
                 listener.start();
                 FastLeaderElection fle = new FastLeaderElection(this, qcm);
                 fle.start();
@@ -1026,11 +1050,12 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             /*
              * Main loop
              */
+            // 不断查看自己的状态 然后作出处理
             while (running) {
                 switch (getPeerState()) {
                 case LOOKING:
                     LOG.info("LOOKING");
-
+                    // 进行leader选举  主要是和其他节点建立tcp连接  由sid大的 主动和sid小的建立连接
                     if (Boolean.getBoolean("readonlymode.enabled")) {
                         LOG.info("Attempting to start ReadOnlyZooKeeperServer");
 
@@ -1081,8 +1106,9 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                            reconfigFlagClear();
                             if (shuttingDownLE) {
                                shuttingDownLE = false;
+                                // 开始进行leader选举
                                startLeaderElection();
-                               }
+                            }
                             setCurrentVote(makeLEStrategy().lookForLeader());
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);

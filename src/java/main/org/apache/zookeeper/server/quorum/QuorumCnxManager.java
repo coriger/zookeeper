@@ -308,7 +308,7 @@ public class QuorumCnxManager {
      * connection if it wins. Notice that it checks whether it has a connection
      * to this server already or not. If it does, then it sends the smallest
      * possible long value to lose the challenge.
-     * 
+     *
      */
     public void receiveConnection(Socket sock) {
         Long sid = null, protocolVersion = null;
@@ -347,7 +347,8 @@ public class QuorumCnxManager {
             return;
         }
         
-        //If wins the challenge, then close the new connection.
+        // If wins the challenge, then close the new connection.
+        // 请求服务器的sid 小于自己的  由sid大的去请求建立连接
         if (sid < self.getId()) {
             /*
              * This replica might still believe that the connection to sid is
@@ -363,6 +364,7 @@ public class QuorumCnxManager {
              * Now we start a new connection
              */
             LOG.debug("Create new connection to server: {}", sid);
+            // 关掉连接 由我们主动去连接它
             closeSocket(sock);
 
             if (electionAddr != null) {
@@ -372,6 +374,8 @@ public class QuorumCnxManager {
             }
 
         } else { // Otherwise start worker threads to receive data.
+            // sid比我们大的请求连接我们
+            // 创建两个工作线程 分别用于发送消息 和 接收消息
             SendWorker sw = new SendWorker(sock, sid);
             RecvWorker rw = new RecvWorker(sock, sid, sw);
             sw.setRecv(rw);
@@ -382,11 +386,13 @@ public class QuorumCnxManager {
                 vsw.finish();
             }
 
+            // 一个sid只会对应一个sw对象
             senderWorkerMap.put(sid, sw);
 
             queueSendMap.putIfAbsent(sid,
                     new ArrayBlockingQueue<ByteBuffer>(SEND_CAPACITY));
-            
+
+            // 启动线程
             sw.start();
             rw.start();
         }
@@ -425,7 +431,7 @@ public class QuorumCnxManager {
     
     /**
      * Try to establish a connection to server with id sid using its electionAddr.
-     * 
+     *  通过选举地址建立连接
      *  @param sid  server id
      *  @return boolean success indication
      */
@@ -441,10 +447,12 @@ public class QuorumCnxManager {
              }
              Socket sock = new Socket();
              setSockOpts(sock);
+             // 建立连接
              sock.connect(electionAddr, cnxTO);
              if (LOG.isDebugEnabled()) {
                  LOG.debug("Connected to server " + sid);
              }
+             // 初始化连接
              initiateConnection(sock, sid);
              return true;
          } catch (UnresolvedAddressException e) {
@@ -466,7 +474,7 @@ public class QuorumCnxManager {
     
     /**
      * Try to establish a connection to server with id sid.
-     * 
+     * 连接指定sid服务器
      *  @param sid  server id
      */
     
@@ -617,6 +625,7 @@ public class QuorumCnxManager {
 
             while((!shutdown) && (numRetries < 3)){
                 try {
+                    // 开启服务端socket连接
                     ss = new ServerSocket();
                     ss.setReuseAddress(true);
                     if (self.getQuorumListenOnAllIPs()) {
@@ -625,17 +634,21 @@ public class QuorumCnxManager {
                     } else {
                         // Resolve hostname for this server in case the
                         // underlying ip address has changed.
+                        // 根据id获取选举ip和端口
                         self.recreateSocketAddresses(self.getId());
                         addr = self.getElectionAddress();
                     }
                     LOG.info("My election bind port: " + addr.toString());
                     setName(addr.toString());
+                    // 监听选举端口
                     ss.bind(addr);
+                    // 这里循环接收选举消息
                     while (!shutdown) {
                         Socket client = ss.accept();
                         setSockOpts(client);
                         LOG.info("Received connection request "
                                 + client.getRemoteSocketAddress());
+                        // 从socket读取数据
                         receiveConnection(client);
                         numRetries = 0;
                     }
@@ -693,6 +706,7 @@ public class QuorumCnxManager {
      * Thread to send messages. Instance waits on a queue, and send a message as
      * soon as there is one available. If connection breaks, then opens a new
      * one.
+     * 消息发送线程
      */
     class SendWorker extends ZooKeeperThread {
         Long sid;
@@ -847,6 +861,7 @@ public class QuorumCnxManager {
     /**
      * Thread to receive messages. Instance waits on a socket read. If the
      * channel breaks, then removes itself from the pool of receivers.
+     * 消息接收线程
      */
     class RecvWorker extends ZooKeeperThread {
         Long sid;

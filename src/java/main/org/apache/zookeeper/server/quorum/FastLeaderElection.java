@@ -866,6 +866,7 @@ public class FastLeaderElection implements Election {
      * Starts a new round of leader election. Whenever our QuorumPeer
      * changes its state to LOOKING, this method is invoked, and it
      * sends notifications to all other peers.
+     * 如果节点状态变成LOOKING 该方法会被调用 并且会通知所有的节点
      */
     public Vote lookForLeader() throws InterruptedException {
         try {
@@ -893,6 +894,7 @@ public class FastLeaderElection implements Election {
 
             LOG.info("New election. My id =  " + self.getId() +
                     ", proposed zxid=0x" + Long.toHexString(proposedZxid));
+            // 发送选举通知
             sendNotifications();
 
             /*
@@ -916,6 +918,7 @@ public class FastLeaderElection implements Election {
                     if(manager.haveDelivered()){
                         sendNotifications();
                     } else {
+                        // 和其余节点建立连接
                         manager.connectAll();
                     }
 

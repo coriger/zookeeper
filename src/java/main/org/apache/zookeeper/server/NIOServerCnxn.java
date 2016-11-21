@@ -172,11 +172,12 @@ public class NIOServerCnxn extends ServerCnxn {
             // 一些统计
             packetReceived();
             incomingBuffer.flip();
-            // 如果还未初始化完成  那收到的消息肯定是请求连接
+            // 如果还未初始化完成  那收到的消息肯定是请求连接消息
             if (!initialized) {
+                // 读取连接请求消息
                 readConnectRequest();
             } else {
-                // 正常消息
+                // 读取正常消息
                 readRequest();
             }
             lenBuffer.clear();
@@ -319,6 +320,7 @@ public class NIOServerCnxn extends ServerCnxn {
             }
             // 通道可读
             if (k.isReadable()) {
+                // 从通道读取数据
                 int rc = sock.read(incomingBuffer);
                 if (rc < 0) {
                     throw new EndOfStreamException(
@@ -326,6 +328,7 @@ public class NIOServerCnxn extends ServerCnxn {
                             + Long.toHexString(sessionId)
                             + ", likely client has closed socket");
                 }
+                // 读缓存区已满
                 if (incomingBuffer.remaining() == 0) {
                     boolean isPayload;
                     if (incomingBuffer == lenBuffer) { // start of next request
@@ -337,6 +340,7 @@ public class NIOServerCnxn extends ServerCnxn {
                         isPayload = true;
                     }
                     if (isPayload) { // not the case for 4letterword
+                        // 这里读取消息内容
                         readPayload();
                     }
                     else {
@@ -433,6 +437,7 @@ public class NIOServerCnxn extends ServerCnxn {
             throw new IOException("ZooKeeperServer not running");
         }
         zkServer.processConnectRequest(this, incomingBuffer);
+        // 连接消息处理后 则把初始化标识改为true
         initialized = true;
     }
 
@@ -535,6 +540,7 @@ public class NIOServerCnxn extends ServerCnxn {
      */
     private boolean readLength(SelectionKey k) throws IOException {
         // Read the length, now get the buffer
+        // 读前四个字节
         int len = lenBuffer.getInt();
         if (!initialized && checkFourLetterWord(sk, len)) {
             return false;

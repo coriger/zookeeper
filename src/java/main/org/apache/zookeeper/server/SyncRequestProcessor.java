@@ -18,14 +18,14 @@
 
 package org.apache.zookeeper.server;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Flushable;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Random;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This RequestProcessor logs requests to disk. It batches the requests to do
@@ -59,11 +59,14 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
      * Transactions that have been written and are waiting to be flushed to
      * disk. Basically this is the list of SyncItems whose callbacks will be
      * invoked after flush returns successfully.
+     * 已写但还未刷到磁盘的数据队列  等待刷新的数据队列
      */
     private final LinkedList<Request> toFlush = new LinkedList<Request>();
     private final Random r = new Random(System.nanoTime());
     /**
      * The number of log entries to log before starting a snapshot
+     * 在启动快照之前要记录的日志条目数
+     * 每进行snapCount次事务日志输出后，触发一次快照(snapshot), 此时，ZK会生成一个snapshot.*文件，同时创建一个新的事务日志文件log.*。默认是100000
      */
     private static int snapCount = ZooKeeperServer.getSnapCount();
 
@@ -105,11 +108,15 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
             int randRoll = r.nextInt(snapCount/2);
             while (true) {
                 Request si = null;
+                // 如果待刷新队列为空
                 if (toFlush.isEmpty()) {
+                    // 从请求队列中拿请求对象并移除 会阻塞
                     si = queuedRequests.take();
                 } else {
+                    // 从请求队列中拿请求对象并移除 不会阻塞 立即返回
                     si = queuedRequests.poll();
                     if (si == null) {
+                        // 如果都没数据 则进行刷新操作
                         flush(toFlush);
                         continue;
                     }
@@ -175,7 +182,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
         if (toFlush.isEmpty())
             return;
 
+        // 提交事物日志
         zks.getZKDatabase().commit();
+        // 遍历待刷新队列 取出消息 交给最后的processor处理
         while (!toFlush.isEmpty()) {
             Request i = toFlush.remove();
             if (nextProcessor != null) {

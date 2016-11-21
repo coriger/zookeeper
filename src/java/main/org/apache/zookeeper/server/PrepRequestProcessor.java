@@ -105,6 +105,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
      */
     private static  boolean failCreate = false;
 
+    // 提交的请求对象队列
     LinkedBlockingQueue<Request> submittedRequests = new LinkedBlockingQueue<Request>();
 
     private final RequestProcessor nextProcessor;
@@ -454,18 +455,24 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 addChangeRecord(new ChangeRecord(request.getHdr().getZxid(), path, null, -1, null));
                 break;
             case OpCode.setData:
+                // 检查会话有效性
                 zks.sessionTracker.checkSession(request.sessionId, request.getOwner());
                 SetDataRequest setDataRequest = (SetDataRequest)record;
                 if(deserialize)
                     ByteBufferInputStream.byteBuffer2Record(request.request, setDataRequest);
                 path = setDataRequest.getPath();
+                // 检查节点path正确性
                 validatePath(path, request.sessionId);
+                // 获取节点此时数据、状态信息
                 nodeRecord = getRecordForPath(path);
+                // 权限检查
                 checkACL(zks, nodeRecord.acl, ZooDefs.Perms.WRITE, request.authInfo);
+                // 这里进行版本检查 乐观锁机制  版本不对 直接返回错误
                 int newVersion = checkAndIncVersion(nodeRecord.stat.getVersion(), setDataRequest.getVersion(), path);
                 request.setTxn(new SetDataTxn(path, setDataRequest.getData(), newVersion));
                 nodeRecord = nodeRecord.duplicate(request.getHdr().getZxid());
                 nodeRecord.stat.setVersion(newVersion);
+                // 添加到队列中 等待发送给下一个processor
                 addChangeRecord(nodeRecord);
                 break;
             case OpCode.reconfig:
@@ -708,6 +715,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         request.setTxn(null);
 
         try {
+            // 根据请求消息类型 构造不同的请求对象 传给后面的processer
             switch (request.type) {
             case OpCode.createContainer:
             case OpCode.create:
@@ -868,6 +876,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             }
         }
         request.zxid = zks.getZxid();
+        // 传给下一个处理器处理
         nextProcessor.processRequest(request);
     }
 

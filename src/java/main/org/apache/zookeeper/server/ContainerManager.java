@@ -149,6 +149,7 @@ public class ContainerManager {
              */
             if ((node != null) && (node.stat.getCversion() > 0) &&
                     (node.getChildren().size() == 0)) {
+                // 曾今有子节点 但现在没有子节点的非空节点
                 candidates.add(containerPath);
             }
         }

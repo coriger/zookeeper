@@ -18,17 +18,13 @@
 
 package org.apache.zookeeper.server;
 
-import java.util.ArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.zookeeper.common.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WorkerService is a worker thread pool for running tasks and is implemented
@@ -43,6 +39,7 @@ import org.slf4j.LoggerFactory;
  *     a given session must be processed in order.
  * ExecutorService provides queue management and thread restarting, so it's
  * useful even with a single thread.
+ * 工作线程池管理器
  */
 public class WorkerService {
     private static final Logger LOG =
@@ -119,9 +116,11 @@ public class WorkerService {
 
         // If we have a worker thread pool, use that; otherwise, do the work
         // directly.
+        // 判断是否有线程池
         int size = workers.size();
         if (size > 0) {
             try {
+                // 有线程池 则取出一个线程池 放入执行
                 // make sure to map negative ids as well to [0, size-1]
                 int workerNum = ((int) (id % size) + size) % size;
                 ExecutorService worker = workers.get(workerNum);
@@ -133,6 +132,7 @@ public class WorkerService {
         } else {
             // When there is no worker thread pool, do the work directly
             // and wait for its completion
+            // 如果没有工作线程池 则直接执行
             scheduledWorkRequest.start();
             try {
                 scheduledWorkRequest.join();

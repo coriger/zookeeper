@@ -137,6 +137,9 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements
         return sw.toString();
     }
 
+    /**
+     * 会话失效处理线程
+     */
     @Override
     public void run() {
         try {

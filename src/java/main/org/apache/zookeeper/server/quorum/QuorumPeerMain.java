@@ -138,6 +138,7 @@ public class QuorumPeerMain {
           ServerCnxnFactory secureCnxnFactory = null;
 
           if (config.getClientPortAddress() != null) {
+              // 初始化服务端连接器工厂实例
               cnxnFactory = ServerCnxnFactory.createFactory();
               cnxnFactory.configure(config.getClientPortAddress(),
                       config.getMaxClientCnxns(),
@@ -151,7 +152,9 @@ public class QuorumPeerMain {
                       true);
           }
 
+          // 该对象用来管理仲裁协议 该实例代表zk服务集群中的一个节点  有几种角色 Leader Follower Observer
           quorumPeer = new QuorumPeer();
+          // FileTxnSnapLog 事务日志 镜像文件 相关的数据管理器
           quorumPeer.setTxnFactory(new FileTxnSnapLog(
                       config.getDataLogDir(),
                       config.getDataDir()));
@@ -167,6 +170,7 @@ public class QuorumPeerMain {
           quorumPeer.setInitLimit(config.getInitLimit());
           quorumPeer.setSyncLimit(config.getSyncLimit());
           quorumPeer.setConfigFileName(config.getConfigFilename());
+          // 初始化zk内存数据库
           quorumPeer.setZKDatabase(new ZKDatabase(quorumPeer.getTxnFactory()));
           quorumPeer.setQuorumVerifier(config.getQuorumVerifier(), false);
           if (config.getLastSeenQuorumVerifier()!=null) {
@@ -178,7 +182,8 @@ public class QuorumPeerMain {
           quorumPeer.setLearnerType(config.getPeerType());
           quorumPeer.setSyncEnabled(config.getSyncEnabled());
           quorumPeer.setQuorumListenOnAllIPs(config.getQuorumListenOnAllIPs());
-          
+
+          // 启动节点服务
           quorumPeer.start();
           quorumPeer.join();
       } catch (InterruptedException e) {

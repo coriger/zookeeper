@@ -67,9 +67,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
      * Defaults to using 2 selector threads with 8 cores and 4 with 32 cores.
      * Expressed as sqrt(numCores/2). Must have at least 1 selector thread.
      */
+    // NIO选择器的线程数量。建议使用多个选择器线程来扩大客户端的连接数，默认值是（CPU核心数/2）
     public static final String ZOOKEEPER_NIO_NUM_SELECTOR_THREADS =
         "zookeeper.nio.numSelectorThreads";
     /** Default: 2 * numCores */
+    // NIO工作线程数。如果工作线程数设置为0，那么选择器线程就可以直接输出。默认值是（CPU核心数 * 2）
     public static final String ZOOKEEPER_NIO_NUM_WORKER_THREADS =
         "zookeeper.nio.numWorkerThreads";
     /** Default: 64kB */
@@ -118,6 +120,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             super(name);
             // Allows the JVM to shutdown even if this thread is still running.
             setDaemon(true);
+            // 创建一个多路复用器
             this.selector = Selector.open();
         }
 
@@ -171,6 +174,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
      * them across the SelectorThreads. It enforces maximum number of
      * connections per IP and attempts to cope with running out of file
      * descriptors by briefly sleeping before retrying.
+     * 服务端接入线程  接收连接 然后轮询的分配给选择器线程
      */
     private class AcceptThread extends AbstractSelectThread {
         private final ServerSocketChannel acceptSocket;
@@ -220,17 +224,21 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         private void select() {
             try {
+                // 阻塞操作 有相关准备就绪io事件则唤醒
                 selector.select();
 
                 Iterator<SelectionKey> selectedKeys =
                     selector.selectedKeys().iterator();
                 while (!stopped && selectedKeys.hasNext()) {
+                    // SelectionKey是通道往多路复用器上注册的一个token
                     SelectionKey key = selectedKeys.next();
                     selectedKeys.remove();
 
                     if (!key.isValid()) {
                         continue;
                     }
+
+                    // 连接就绪
                     if (key.isAcceptable()) {
                         // 接收客户端连接
                         if (!doAccept()) {
@@ -281,8 +289,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 sc = acceptSocket.accept();
                 accepted = true;
                 InetAddress ia = sc.socket().getInetAddress();
+                // 获取当前客户端ip已建立的连接数
                 int cnxncount = getClientCnxnCount(ia);
 
+                // 判断客户端连接数是否超过上限 默认60  是按ip来区分的 每个ip最多只能建60个连接
                 if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns){
                     throw new IOException("Too many connections from " + ia
                                           + " - max is " + maxClientCnxns );
@@ -293,10 +303,14 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 sc.configureBlocking(false);
 
                 // Round-robin assign this connection to a selector thread
+                // 轮询的方式
                 if (!selectorIterator.hasNext()) {
                     selectorIterator = selectorThreads.iterator();
                 }
+
+                // 取一个选择器线程
                 SelectorThread selectorThread = selectorIterator.next();
+                // 用选择器线程来接收客户端连接
                 if (!selectorThread.addAcceptedConnection(sc)) {
                     throw new IOException(
                         "Unable to add connection to selector queue"
@@ -352,9 +366,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
          * with the selector.
          */
         public boolean addAcceptedConnection(SocketChannel accepted) {
+            // 把socket通道插入到接收队列中
             if (stopped || !acceptedQueue.offer(accepted)) {
                 return false;
             }
+            // 唤醒阻塞在selector.select上的线程  也就是selector线程
             wakeupSelector();
             return true;
         }
@@ -418,11 +434,13 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         private void select() {
             try {
+                // 这里会一直阻塞 知道Accept线程把它唤醒
                 selector.select();
 
                 Set<SelectionKey> selected = selector.selectedKeys();
                 ArrayList<SelectionKey> selectedList =
                     new ArrayList<SelectionKey>(selected);
+                // 随机打乱原来的顺
                 Collections.shuffle(selectedList);
                 Iterator<SelectionKey> selectedKeys = selectedList.iterator();
                 while(!stopped && selectedKeys.hasNext()) {
@@ -461,6 +479,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             cnxn.disableSelectable();
             key.interestOps(0);
             touchCnxn(cnxn);
+            // 放入工作线程池中处理
             workerPool.schedule(workRequest);
         }
 
@@ -525,6 +544,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             }
 
             if (key.isReadable() || key.isWritable()) {
+                // 这里进行io操作
                 cnxn.doIO(key);
 
                 // Check if we shutdown or doIO() closed this connection
@@ -558,6 +578,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     /**
      * This thread is responsible for closing stale connections so that
      * connections on which no session is established are properly expired.
+     * 用于关闭无效连接
      */
     private class ConnectionExpirerThread extends ZooKeeperThread {
         ConnectionExpirerThread() {
@@ -660,6 +681,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         int numCores = Runtime.getRuntime().availableProcessors();
         // 32 cores sweet spot seems to be 4 selector threads
+        // NIO选择器的线程数量。建议使用多个选择器线程来扩大客户端的连接数，默认值是（CPU核心数/2）
         numSelectorThreads = Integer.getInteger(
             ZOOKEEPER_NIO_NUM_SELECTOR_THREADS,
             Math.max((int) Math.sqrt((float) numCores/2), 1));
@@ -667,6 +689,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             throw new IOException("numSelectorThreads must be at least 1");
         }
 
+        // NIO工作线程数。如果工作线程数设置为0，那么选择器线程就可以直接输出。默认值是（CPU核心数 * 2）
         numWorkerThreads = Integer.getInteger(
             ZOOKEEPER_NIO_NUM_WORKER_THREADS, 2 * numCores);
         workerShutdownTimeoutMS = Long.getLong(
@@ -680,6 +703,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                  + (directBufferBytes == 0 ? "gathered writes." :
                     ("" + (directBufferBytes/1024) + " kB direct buffers.")));
         for(int i=0; i<numSelectorThreads; ++i) {
+            // 这里创建多个选择器线程
             selectorThreads.add(new SelectorThread(i));
         }
 
@@ -689,7 +713,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         LOG.info("binding to port " + addr);
         ss.socket().bind(addr);
         ss.configureBlocking(false);
-        // 初始化接入线程
+        // 初始化接入线程 接收连接 然后轮询的分配给选择器线程
         acceptThread = new AcceptThread(ss, addr, selectorThreads);
     }
    
@@ -735,15 +759,18 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             workerPool = new WorkerService(
                 "NIOWorker", numWorkerThreads, false);
         }
+        // 遍历 启动接入线程
         for(SelectorThread thread : selectorThreads) {
             if (thread.getState() == Thread.State.NEW) {
                 thread.start();
             }
         }
         // ensure thread is started once and only once
+        // 启动接入线程
         if (acceptThread.getState() == Thread.State.NEW) {
             acceptThread.start();
         }
+        // 启动连接失效检查线程
         if (expirerThread.getState() == Thread.State.NEW) {
             expirerThread.start();
         }
@@ -752,7 +779,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     @Override
     public void startup(ZooKeeperServer zks, boolean startServer)
             throws IOException, InterruptedException {
+        // 启动之前初始化的各种线程  接入线程 选择器线程 工作线程等等
         start();
+        // 绑定下工厂对象
         setZooKeeperServer(zks);
         if (startServer) {
             // 数据载入

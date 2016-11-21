@@ -20,7 +20,9 @@ package org.apache.zookeeper.server.quorum;
 
 import org.apache.zookeeper.server.quorum.QuorumPeer.ServerState;
 
-
+/**
+ * 选票 表决 投票
+ */
 public class Vote {
     
     public Vote(long id,

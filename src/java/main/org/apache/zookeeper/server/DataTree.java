@@ -129,6 +129,7 @@ public class DataTree {
 
     /**
      * This hashtable lists the paths of the ephemeral nodes of a session.
+     * 临时节点的session path映射
      */
     private final Map<Long, HashSet<String>> ephemerals =
         new ConcurrentHashMap<Long, HashSet<String>>();
@@ -632,12 +633,15 @@ public class DataTree {
 
     public Stat setData(String path, byte data[], int version, long zxid,
             long time) throws KeeperException.NoNodeException {
+        // 节点状态信息
         Stat s = new Stat();
+        // 获取节点
         DataNode n = nodes.get(path);
         if (n == null) {
             throw new KeeperException.NoNodeException();
         }
         byte lastdata[] = null;
+        // 替换节点值
         synchronized (n) {
             lastdata = n.data;
             n.data = data;
@@ -652,6 +656,8 @@ public class DataTree {
           this.updateBytes(lastPrefix, (data == null ? 0 : data.length)
               - (lastdata == null ? 0 : lastdata.length));
         }
+
+        // 触发节点变更时间通知
         dataWatches.triggerWatch(path, EventType.NodeDataChanged);
         return s;
     }
@@ -817,6 +823,7 @@ public class DataTree {
             rc.type = header.getType();
             rc.err = 0;
             rc.multiResult = null;
+            // 根据请求头 消息类型 来执行不同操作
             switch (header.getType()) {
                 case OpCode.create:
                     CreateTxn createTxn = (CreateTxn) txn;
@@ -865,6 +872,7 @@ public class DataTree {
                 case OpCode.setData:
                     SetDataTxn setDataTxn = (SetDataTxn) txn;
                     rc.path = setDataTxn.getPath();
+                    // 更新节点内容
                     rc.stat = setData(setDataTxn.getPath(), setDataTxn
                             .getData(), setDataTxn.getVersion(), header
                             .getZxid(), header.getTime());
