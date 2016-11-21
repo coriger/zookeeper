@@ -172,6 +172,7 @@ public class QuorumPeerMain {
           quorumPeer.setConfigFileName(config.getConfigFilename());
           // 初始化zk内存数据库
           quorumPeer.setZKDatabase(new ZKDatabase(quorumPeer.getTxnFactory()));
+          // 设置投票仲裁器 用于判断投票是否过半数
           quorumPeer.setQuorumVerifier(config.getQuorumVerifier(), false);
           if (config.getLastSeenQuorumVerifier()!=null) {
               quorumPeer.setLastSeenQuorumVerifier(config.getLastSeenQuorumVerifier(), false);
